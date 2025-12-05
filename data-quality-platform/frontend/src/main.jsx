@@ -21,47 +21,50 @@ const queryClient = new QueryClient({
 const theme = createTheme({
   palette: {
     mode: 'light',
-    primary: {
-      main: '#1976d2'
-    },
-    secondary: {
-      main: '#dc004e'
-    },
-    success: {
-      main: '#4caf50'
-    },
-    error: {
-      main: '#f44336'
-    },
-    warning: {
-      main: '#ff9800'
-    },
-    info: {
-      main: '#2196f3'
-    }
+    primary: { main: '#424242' },
+    secondary: { main: '#757575' },
+    success: { main: '#4caf50' },
+    error: { main: '#f44336' },
+    warning: { main: '#ff9800' },
+    info: { main: '#2196f3' },
+    background: { default: '#f5f5f5', paper: '#ffffff' }
   },
+  shape: { borderRadius: 0 },
   typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontSize: '2.5rem',
-      fontWeight: 500
-    },
-    h2: {
-      fontSize: '2rem',
-      fontWeight: 500
-    },
-    h3: {
-      fontSize: '1.75rem',
-      fontWeight: 500
-    }
+    fontFamily: 'Inter, Roboto, Segoe UI, Helvetica, Arial, sans-serif',
+    h1: { fontWeight: 600, letterSpacing: '0.2px' },
+    h2: { fontWeight: 600 },
+    h3: { fontWeight: 600 },
+    h4: { fontWeight: 600 },
+    h5: { fontWeight: 500 },
+    h6: { fontWeight: 500 }
   },
   components: {
-    MuiButton: {
+    MuiPaper: {
       styleOverrides: {
         root: {
-          textTransform: 'none'
+          backgroundImage: 'none',
+          borderRadius: 0,
+          border: '1px solid #e0e0e0'
         }
       }
+    },
+    MuiButton: {
+      defaultProps: { disableElevation: true },
+      styleOverrides: {
+        root: { textTransform: 'none', fontWeight: 500, borderRadius: 0 }
+      }
+    },
+    MuiChip: {
+      styleOverrides: { root: { fontWeight: 500, borderRadius: 0 } }
+    },
+    MuiTableHead: {
+      styleOverrides: {
+        root: { background: '#fafafa' }
+      }
+    },
+    MuiTableCell: {
+      styleOverrides: { head: { color: '#212121', fontWeight: 600 } }
     }
   }
 })

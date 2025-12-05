@@ -14,6 +14,7 @@ import IssueDetails from './pages/IssueDetails'
 import Quality from './pages/Quality'
 import Monitoring from './pages/Monitoring'
 import Remediation from './pages/Remediation'
+import Comparison from './pages/Comparison'
 
 function App() {
   return (
@@ -29,6 +30,8 @@ function App() {
         <Route path="quality" element={<Quality />} />
         <Route path="monitoring" element={<Monitoring />} />
         <Route path="remediation" element={<Remediation />} />
+        <Route path="comparison" element={<Comparison />} />
+        <Route path="comparison/:tableId" element={<Comparison />} />
       </Route>
     </Routes>
   )

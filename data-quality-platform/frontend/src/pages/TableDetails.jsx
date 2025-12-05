@@ -24,6 +24,7 @@ function TableDetails() {
   const [tableData, setTableData] = useState([])
   const [tab, setTab] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [cleanedStatus, setCleanedStatus] = useState(null)
 
   useEffect(() => {
     loadTableDetails()
@@ -31,17 +32,30 @@ function TableDetails() {
 
   const loadTableDetails = async () => {
     try {
-      const [tableRes, dataRes] = await Promise.all([
+      const [tableRes, dataRes, cleanedRes] = await Promise.all([
         dataService.getTable(tableId),
-        dataService.getTableData(tableId, { limit: 100 })
+        dataService.getTableData(tableId), // No limit - show all rows
+        dataService.getCleanedStatus(tableId).catch(() => ({ data: null }))
       ])
       setTable(tableRes.data.table)
       setTableData(dataRes.data.data)
+      setCleanedStatus(cleanedRes?.data || null)
     } catch (error) {
       console.error('Failed to load table:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleExport = async (cleaned) => {
+    const resp = await dataService[cleaned ? 'exportCleanedTable' : 'exportTable'](tableId, 'csv')
+    const blob = new Blob([resp.data], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${table?.display_name || 'table'}${cleaned ? '_CLEANED' : ''}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
   }
 
   if (loading) {
@@ -86,28 +100,33 @@ function TableDetails() {
 
         <Box sx={{ p: 3 }}>
           {tab === 0 && (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    {table?.Columns?.map((col) => (
-                      <TableCell key={col.id}>{col.name}</TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {tableData.map((row, idx) => (
-                    <TableRow key={idx}>
+            <>
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                Showing all {tableData.length.toLocaleString()} rows
+              </Typography>
+              <TableContainer sx={{ maxHeight: '600px', overflow: 'auto' }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
                       {table?.Columns?.map((col) => (
-                        <TableCell key={col.id}>
-                          {String(row[col.name] || '')}
-                        </TableCell>
+                        <TableCell key={col.id}>{col.name}</TableCell>
                       ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {tableData.map((row, idx) => (
+                      <TableRow key={idx}>
+                        {table?.Columns?.map((col) => (
+                          <TableCell key={col.id}>
+                            {String(row[col.name] || '')}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
           )}
 
           {tab === 1 && (
@@ -142,6 +161,59 @@ function TableDetails() {
               <Typography variant="body2" paragraph>
                 <strong>Quality Score:</strong> {table?.quality_score}%
               </Typography>
+
+              {/* AI Remediation Status */}
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  AI Remediation
+                </Typography>
+                <Typography variant="body2" paragraph>
+                  <strong>Status:</strong> {cleanedStatus?.hasCleanedData ? 'Cleaned available' : 'No cleaned data yet'}
+                </Typography>
+                {cleanedStatus?.hasCleanedData && (
+                  <>
+                    <Typography variant="body2" paragraph>
+                      <strong>Fixes Applied:</strong> {cleanedStatus.fixesApplied}
+                    </Typography>
+                    <Typography variant="body2" paragraph>
+                      <strong>Last Cleaned:</strong> {cleanedStatus.lastCleaned ? new Date(cleanedStatus.lastCleaned).toLocaleString() : '—'}
+                    </Typography>
+                    <Button variant="contained" onClick={() => handleExport(true)} sx={{ mr: 1 }}>
+                      Export Cleaned CSV
+                    </Button>
+                  </>
+                )}
+                <Button variant="outlined" onClick={() => handleExport(false)} sx={{ mt: 1 }}>
+                  Export Original CSV
+                </Button>
+
+                {/* Remediation log */}
+                {cleanedStatus?.remediationLog && cleanedStatus.remediationLog.length > 0 && (
+                  <Box sx={{ mt: 3 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Recent AI Changes
+                    </Typography>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>When</TableCell>
+                          <TableCell>Summary</TableCell>
+                          <TableCell align="right">Applied</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {cleanedStatus.remediationLog.slice(0, 5).map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                            <TableCell>{log.summary}</TableCell>
+                            <TableCell align="right">{log.appliedFixes}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                )}
+              </Box>
             </Box>
           )}
         </Box>

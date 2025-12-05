@@ -48,13 +48,11 @@ const errorHandler = (err, req, res, next) => {
     }
   }
 
-  // OpenAI API errors
   if (err.code === 'insufficient_quota') {
     const message = 'Insufficient API quota';
     error = { message, statusCode: 429 };
   }
 
-  // Default error
   if (!error.statusCode) {
     error.statusCode = 500;
     error.message = 'Internal server error';

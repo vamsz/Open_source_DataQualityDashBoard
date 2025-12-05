@@ -1,40 +1,65 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSnackbar } from 'notistack'
 import {
   Box,
   Paper,
   Typography,
-  TextField,
   Button,
   LinearProgress,
   Alert,
-  List,
-  ListItem,
-  ListItemText,
   IconButton,
   Chip,
-  Switch,
-  FormControlLabel
+  Card,
+  CardContent,
+  Avatar,
+  Stack,
+  Fade
 } from '@mui/material'
-import { CloudUpload, Delete, CheckCircle } from '@mui/icons-material'
+import { 
+  CloudUpload, 
+  Delete, 
+  CheckCircle, 
+  InsertDriveFile,
+  Description,
+  TableChart,
+  UploadFile,
+  Folder
+} from '@mui/icons-material'
 import { dataService } from '../services/apiService'
 
 function Upload() {
   const [files, setFiles] = useState([])
-  const [multipleMode, setMultipleMode] = useState(false)
-  const [tableName, setTableName] = useState('')
-  const [description, setDescription] = useState('')
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useRef(null)
   const { enqueueSnackbar } = useSnackbar()
   const navigate = useNavigate()
 
-  const handleFileChange = (e) => {
-    const selectedFiles = Array.from(e.target.files)
-    
-    if (selectedFiles.length === 0) return
+  // Drag and drop handlers
+  const handleDrag = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setDragActive(false)
+    }
+  }
 
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFiles = Array.from(e.dataTransfer.files)
+      processFiles(droppedFiles)
+    }
+  }
+
+  const processFiles = (selectedFiles) => {
     const validTypes = ['.csv', '.xls', '.xlsx']
     const validFiles = []
 
@@ -54,14 +79,18 @@ function Upload() {
       validFiles.push(file)
     }
 
-    if (multipleMode) {
-      setFiles(validFiles)
-    } else if (validFiles.length > 0) {
-      setFiles([validFiles[0]])
-      if (!tableName) {
-        setTableName(validFiles[0].name.replace(/\.[^/.]+$/, ''))
-      }
-    }
+    // Add new files to existing ones (avoid duplicates)
+    setFiles(prevFiles => {
+      const existingNames = new Set(prevFiles.map(f => f.name))
+      const newFiles = validFiles.filter(f => !existingNames.has(f.name))
+      return [...prevFiles, ...newFiles]
+    })
+  }
+
+  const handleFileChange = (e) => {
+    const selectedFiles = Array.from(e.target.files)
+    if (selectedFiles.length === 0) return
+    processFiles(selectedFiles)
   }
 
   const removeFile = (index) => {
@@ -81,44 +110,25 @@ function Upload() {
     setProgress(0)
 
     try {
-      if (multipleMode && files.length > 1) {
-        // Multiple file upload
-        const formData = new FormData()
-        files.forEach((file) => {
-          formData.append('files', file)
-        })
+      // Always use multiple file upload
+      const formData = new FormData()
+      files.forEach((file) => {
+        formData.append('files', file)
+      })
 
-        const response = await dataService.uploadMultipleFiles(
-          formData,
-          (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            setProgress(percentCompleted)
-          }
-        )
+      const response = await dataService.uploadMultipleFiles(
+        formData,
+        (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          setProgress(percentCompleted)
+        }
+      )
 
-        enqueueSnackbar(
-          `Uploaded ${response.data.uploaded} of ${response.data.total} files!`,
-          { variant: 'success' }
-        )
-        navigate('/tables')
-      } else {
-        // Single file upload
-        const formData = new FormData()
-        formData.append('file', files[0])
-        formData.append('tableName', tableName)
-        formData.append('description', description)
-
-        const response = await dataService.uploadFile(
-          formData,
-          (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            setProgress(percentCompleted)
-          }
-        )
-
-        enqueueSnackbar('File uploaded successfully!', { variant: 'success' })
-        navigate(`/tables`)
-      }
+      enqueueSnackbar(
+        `Uploaded ${response.data.uploaded} of ${response.data.total} files!`,
+        { variant: 'success' }
+      )
+      navigate('/tables')
     } catch (error) {
       enqueueSnackbar(
         error.response?.data?.error || 'Upload failed',
@@ -131,147 +141,307 @@ function Upload() {
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <div>
-          <Typography variant="h4" gutterBottom>
-            Upload Data
-          </Typography>
-          <Typography variant="body1" color="textSecondary">
-            Upload CSV or Excel files for quality analysis
-          </Typography>
-        </div>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={multipleMode}
-              onChange={(e) => {
-                setMultipleMode(e.target.checked)
-                setFiles([])
-                setTableName('')
-              }}
-              disabled={uploading}
-            />
-          }
-          label="Multiple Files Mode"
-        />
+    <Box sx={{ pb: 4 }}>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Box>
+            <Typography variant="h3" sx={{ 
+              fontWeight: 600, 
+              mb: 1,
+              color: '#212121'
+            }}>
+              Upload Multiple Files
+            </Typography>
+            <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 400, mb: 2 }}>
+              Upload multiple CSV and Excel files at once - each file becomes a separate table
+            </Typography>
+            
+            {/* Features */}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3}>
+              {[
+                { icon: <TableChart />, text: 'Automatic profiling' },
+                { icon: <Description />, text: 'Quality detection' },
+                { icon: <CheckCircle />, text: 'AI remediation' }
+              ].map((feature, index) => (
+                <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Avatar sx={{ 
+                    width: 32, 
+                    height: 32, 
+                    bgcolor: '#424242',
+                    '& svg': { fontSize: 18 }
+                  }}>
+                    {feature.icon}
+                  </Avatar>
+                  <Typography variant="body2" color="text.secondary">
+                    {feature.text}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+        </Box>
       </Box>
 
-      <Paper sx={{ p: 4, maxWidth: 800 }}>
+      {/* Upload Form */}
+      <Paper sx={{ 
+        p: 4, 
+        maxWidth: 900,
+        mx: 'auto',
+        borderRadius: 0,
+        background: '#ffffff',
+        border: '1px solid #e0e0e0'
+      }}>
         <Box component="form" onSubmit={handleSubmit}>
+          {/* Drag and Drop Area */}
           <Box
             sx={{
-              border: '2px dashed #ccc',
-              borderRadius: 2,
-              p: 4,
+              border: `2px dashed ${dragActive ? '#424242' : '#bdbdbd'}`,
+              borderRadius: 0,
+              p: 6,
               textAlign: 'center',
-              mb: 3,
+              mb: 4,
               cursor: 'pointer',
+              position: 'relative',
+              background: dragActive 
+                ? '#f5f5f5'
+                : files.length > 0 
+                  ? '#f1f8e9'
+                  : 'transparent',
+              transition: 'background-color 0.2s ease',
               '&:hover': {
-                backgroundColor: '#f5f5f5'
+                backgroundColor: '#fafafa',
+                borderColor: '#424242'
               }
             }}
-            onClick={() => document.getElementById('file-input').click()}
+            onClick={() => fileInputRef.current?.click()}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
           >
             <input
-              id="file-input"
+              ref={fileInputRef}
               type="file"
               hidden
               accept=".csv,.xls,.xlsx"
-              multiple={multipleMode}
+              multiple
               onChange={handleFileChange}
               disabled={uploading}
             />
-            <CloudUpload sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              {files.length > 0 
-                ? `${files.length} file${files.length > 1 ? 's' : ''} selected` 
-                : 'Click to upload or drag and drop'}
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              {multipleMode 
-                ? 'Select multiple CSV or Excel files (max 10 files, 50MB each)'
-                : 'CSV or Excel files (max 50MB)'}
-            </Typography>
+            
+            <Fade in={!dragActive && files.length === 0}>
+              <Box>
+                <Avatar sx={{ 
+                  width: 80, 
+                  height: 80, 
+                  mx: 'auto', 
+                  mb: 3,
+                  background: '#424242',
+                  borderRadius: 0
+                }}>
+                  <CloudUpload sx={{ fontSize: 40 }} />
+                </Avatar>
+                <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                  Drop files here to upload
+                </Typography>
+                <Typography variant="body1" color="text.secondary" paragraph>
+                  or click to browse from your computer
+                </Typography>
+                <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 2 }}>
+                  <Chip label="CSV" variant="outlined" size="small" />
+                  <Chip label="XLS" variant="outlined" size="small" />
+                  <Chip label="XLSX" variant="outlined" size="small" />
+                </Stack>
+                <Typography variant="caption" color="text.secondary">
+                  Upload up to 10 files, 50MB each
+                </Typography>
+              </Box>
+            </Fade>
+
+            <Fade in={dragActive}>
+              <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Avatar sx={{ 
+                  width: 80, 
+                  height: 80,
+                  background: '#4caf50',
+                  borderRadius: 0
+                }}>
+                  <UploadFile sx={{ fontSize: 40 }} />
+                </Avatar>
+              </Box>
+            </Fade>
+
+            <Fade in={files.length > 0 && !dragActive}>
+              <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Avatar sx={{ 
+                    width: 80, 
+                    height: 80, 
+                    mx: 'auto', 
+                    mb: 2,
+                    bgcolor: 'success.main'
+                  }}>
+                    <CheckCircle sx={{ fontSize: 40 }} />
+                  </Avatar>
+                  <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                    {files.length} file{files.length > 1 ? 's' : ''} ready to upload
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Click here to add more files
+                  </Typography>
+                </Box>
+              </Box>
+            </Fade>
           </Box>
 
+          {/* File List */}
           {files.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Selected Files:
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Folder color="primary" />
+                Selected Files ({files.length})
               </Typography>
-              <List dense>
+              <Stack spacing={2}>
                 {files.map((file, index) => (
-                  <ListItem
-                    key={index}
-                    secondaryAction={
-                      !uploading && (
-                        <IconButton edge="end" onClick={() => removeFile(index)}>
-                          <Delete />
-                        </IconButton>
-                      )
+                  <Card key={index} sx={{ 
+                    border: '1px solid rgba(0,0,0,0.08)',
+                    transition: 'all 0.2s ease',
+                    '&:hover': uploading ? {} : { 
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)' 
                     }
-                  >
-                    <ListItemText
-                      primary={file.name}
-                      secondary={`${(file.size / 1024 / 1024).toFixed(2)} MB`}
-                    />
-                    {uploading && <CheckCircle color="success" sx={{ mr: 2 }} />}
-                  </ListItem>
+                  }}>
+                    <CardContent sx={{ p: 2.5 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                          <Avatar sx={{ 
+                            bgcolor: file.name.endsWith('.csv') ? 'success.main' : 'info.main',
+                            width: 48,
+                            height: 48
+                          }}>
+                            <InsertDriveFile />
+                          </Avatar>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                              {file.name}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              📦 {(file.size / 1024 / 1024).toFixed(2)} MB • 
+                              📄 {file.name.endsWith('.csv') ? 'CSV File' : 'Excel File'}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {uploading ? (
+                            <Chip 
+                              icon={<CheckCircle />} 
+                              label="Uploading..." 
+                              color="primary" 
+                              variant="outlined"
+                            />
+                          ) : (
+                            <IconButton 
+                              color="error" 
+                              onClick={() => removeFile(index)}
+                              sx={{ 
+                                transition: 'background-color 0.2s ease',
+                                borderRadius: 0,
+                                '&:hover': { 
+                                  bgcolor: '#ffebee'
+                                }
+                              }}
+                            >
+                              <Delete />
+                            </IconButton>
+                          )}
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
                 ))}
-              </List>
+              </Stack>
             </Box>
           )}
 
-          {!multipleMode && files.length === 1 && (
-            <>
-              <TextField
-                fullWidth
-                label="Table Name"
-                value={tableName}
-                onChange={(e) => setTableName(e.target.value)}
-                required
-                disabled={uploading}
-                sx={{ mb: 2 }}
-              />
 
-              <TextField
-                fullWidth
-                label="Description (optional)"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                multiline
-                rows={3}
-                disabled={uploading}
-                sx={{ mb: 3 }}
-              />
-            </>
-          )}
-
+          {/* Upload Progress */}
           {uploading && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" color="textSecondary" gutterBottom>
-                Uploading... {progress}%
-              </Typography>
-              <LinearProgress variant="determinate" value={progress} />
-            </Box>
+            <Card sx={{ mb: 4, p: 3, bgcolor: '#f5f5f5', borderRadius: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Avatar sx={{ bgcolor: '#424242', width: 40, height: 40, borderRadius: 0 }}>
+                  <UploadFile />
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Uploading {files.length} file{files.length > 1 ? 's' : ''}...
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Processing and analyzing your data
+                  </Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 600, color: '#424242' }}>
+                  {progress}%
+                </Typography>
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={progress}
+                sx={{ 
+                  height: 8, 
+                  borderRadius: 0,
+                  bgcolor: '#e0e0e0',
+                  '& .MuiLinearProgress-bar': { borderRadius: 0 }
+                }}
+              />
+            </Card>
           )}
 
-          <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            disabled={files.length === 0 || uploading}
-            size="large"
-          >
-            {uploading 
-              ? `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...` 
-              : `Upload ${files.length > 0 ? files.length : ''} ${files.length > 1 ? 'Files' : 'File'}`}
-          </Button>
+          {/* Submit Button */}
+          <Stack direction="row" spacing={2}>
+            <Button
+              type="submit"
+              variant="contained"
+              fullWidth
+              disabled={files.length === 0 || uploading}
+              size="large"
+              sx={{ 
+                py: 2,
+                borderRadius: 0,
+                fontSize: '1.1rem',
+                fontWeight: 500,
+                background: '#424242',
+                '&:hover': {
+                  background: '#616161'
+                },
+                '&:disabled': {
+                  background: '#e0e0e0',
+                  color: '#9e9e9e'
+                }
+              }}
+            >
+              {uploading 
+                ? `Processing ${files.length} file${files.length > 1 ? 's' : ''}...` 
+                : files.length === 0
+                  ? 'Select files to upload'
+                  : `Upload ${files.length} file${files.length > 1 ? 's' : ''}`}
+            </Button>
+          </Stack>
 
-          {multipleMode && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Each file will be uploaded as a separate table with its filename as the table name.
+          {/* Info Alert */}
+          {files.length > 0 && (
+            <Alert 
+              severity="info" 
+              sx={{ 
+                mt: 3,
+                borderRadius: 0,
+                bgcolor: '#e3f2fd',
+                border: '1px solid #90caf9'
+              }}
+            >
+              <Typography variant="body2">
+                <strong>Batch Upload:</strong> Each file will be uploaded as a separate table using its filename as the table name.
+              </Typography>
             </Alert>
           )}
         </Box>

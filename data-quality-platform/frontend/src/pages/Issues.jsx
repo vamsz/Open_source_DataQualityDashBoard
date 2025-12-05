@@ -18,7 +18,7 @@ import {
   FormControl,
   InputLabel
 } from '@mui/material'
-import { Visibility } from '@mui/icons-material'
+import { Visibility, Refresh } from '@mui/icons-material'
 import { issueService } from '../services/apiService'
 
 function Issues() {
@@ -33,10 +33,15 @@ function Issues() {
 
   const loadIssues = async () => {
     try {
+      console.log('🔍 Fetching issues with filters:', filters)
       const response = await issueService.getIssues(filters)
-      setIssues(response.data.issues)
+      console.log('✅ Issues API response:', response.data)
+      console.log(`📊 Total issues received: ${response.data.issues?.length || 0}`)
+      setIssues(response.data.issues || [])
     } catch (error) {
-      console.error('Failed to load issues:', error)
+      console.error('❌ Failed to load issues:', error)
+      console.error('Error details:', error.response?.data || error.message)
+      setIssues([]) // Set empty array on error
     } finally {
       setLoading(false)
     }
@@ -62,9 +67,23 @@ function Issues() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Data Quality Issues
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box>
+          <Typography variant="h4">
+            Data Quality Issues
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {issues.length} issue{issues.length !== 1 ? 's' : ''} found
+          </Typography>
+        </Box>
+        <IconButton 
+          onClick={() => { setLoading(true); loadIssues(); }} 
+          color="primary"
+          title="Refresh issues"
+        >
+          <Refresh />
+        </IconButton>
+      </Box>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
         <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -121,7 +140,9 @@ function Issues() {
               <TableCell>Type</TableCell>
               <TableCell>Severity</TableCell>
               <TableCell>Records</TableCell>
+              <TableCell>Exact Locations</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>Remediation</TableCell>
               <TableCell>Detected</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -129,7 +150,7 @@ function Issues() {
           <TableBody>
             {issues.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={9} align="center">
                   <Typography color="textSecondary">No issues found</Typography>
                 </TableCell>
               </TableRow>
@@ -165,7 +186,34 @@ function Issues() {
                     )}
                   </TableCell>
                   <TableCell>
+                    {issue.exact_locations && issue.exact_locations.length > 0 ? (
+                      <>
+                        <Typography variant="caption" color="primary" fontWeight="bold">
+                          {issue.exact_locations.length} exact locations
+                        </Typography>
+                        <Typography variant="caption" display="block" color="textSecondary">
+                          e.g., Row {issue.exact_locations[0].row}, Col: {issue.exact_locations[0].column}
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="caption" color="textSecondary">
+                        Multiple rows
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <Chip label={issue.status} size="small" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={issue.remediation_status || 'Incomplete'}
+                      size="small"
+                      color={issue.remediation_status === 'Complete' ? 'success' : 'default'}
+                      sx={{
+                        borderRadius: 0,
+                        fontWeight: issue.remediation_status === 'Complete' ? 600 : 400
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     {new Date(issue.detected_at).toLocaleDateString()}
@@ -175,6 +223,7 @@ function Issues() {
                       size="small"
                       onClick={() => navigate(`/issues/${issue.id}`)}
                       color="primary"
+                      title="View detailed locations"
                     >
                       <Visibility />
                     </IconButton>
